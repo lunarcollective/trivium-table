@@ -1,0 +1,70 @@
+body {
+  font-family: 'Source Sans Pro', 'Trebuchet MS', 'Lucida Grande', 'Bitstream Vera Sans', 'Helvetica Neue', sans-serif;
+  margin: 0;
+  text-align: center;
+  color: #293c4b;
+}
+
+h1 {
+  font-size: 30px;
+}
+
+img {
+  margin: 20px 0;
+  max-width: 200px;
+}
+
+.body__container {
+  margin: 3rem;
+}
+
+.input__container {
+
+}
+
+.table__container {
+  marign: 3rem;
+}
+
+.table__container .table {
+  margin: 5%;
+  border: 1px solid black;
+}
+
+.table__row {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 5%;
+}
+
+.table__row.headers {
+  border-bottom: 1px solid lightgray;
+}
+
+.table__entry-block {
+  flex: 0 0 26.5%;
+  border-left: 1px solid lightgray;
+  border-right: 1px solid lightgray;
+  text-align: left;
+  padding: 0 2rem;
+}
+
+.flex {
+  display: flex;
+}
+
+.table__entry-block.flex {
+  display: flex;
+  justify-content: space-between;
+}
+.drop-down {
+  width: 2rem;
+  background: #eee;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.drop-down:hover {
+  background: #ddd;
+}
