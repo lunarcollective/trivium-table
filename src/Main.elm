@@ -2,7 +2,8 @@ module Main exposing (..)
 
 import Html exposing (Html, text, div, input, label)
 import Html.Events exposing (onClick, onInput)
-import Html.Attributes exposing (class, value, type_)
+import Html.Attributes exposing (class, value, type_, checked)
+import Set exposing (Set)
 
 
 ---- MODEL ----
@@ -19,7 +20,8 @@ type alias State a =
     , entries : List Entry
     , selected : Maybe (List a)
     , open : Bool
-    , dropdownSelection : List String
+    , dropdownSelection : Set String
+    , checkedEntries : Set String
     }
 
 
@@ -33,7 +35,7 @@ type alias Entry =
 
 init : ( State a, Cmd Msg )
 init =
-    ( State "" "" initEntries Nothing False [], Cmd.none )
+    ( State "" "" initEntries Nothing False (Set.fromList []) (Set.fromList []), Cmd.none )
 
 
 initEntries : List Entry
@@ -56,6 +58,12 @@ type Msg
     = NoOp
     | UpdateQuery String
     | Dropdown String
+    | FilterChecked String
+
+
+toName : { a | name : String } -> String
+toName obj =
+    obj.name
 
 
 update : Msg -> State a -> ( State a, Cmd Msg )
@@ -64,7 +72,9 @@ update msg state =
         UpdateQuery query ->
             ( { state
                 | query = query
-                , entries = filterEntries query state.entries
+                , entries = List.map (filterEntries query) state.entries
+
+                -- , dropdownSelection = Set.filter (\item -> String.contains (String.toLower query) (String.toLower item)) state.dropdownSelection
               }
             , Cmd.none
             )
@@ -72,20 +82,75 @@ update msg state =
         Dropdown header ->
             ( { state
                 | open = not state.open
-                , dropdownSelection = "All" :: List.map (headerToEntryField header) state.entries
+                , dropdownSelection = Set.fromList <| "All" :: List.map (headerToEntryField header state) state.entries
               }
             , Cmd.none
             )
+
+        FilterChecked string ->
+            let
+                newSet =
+                    if Set.member string state.checkedEntries then
+                        Set.remove string state.checkedEntries
+                    else
+                        Set.insert string state.checkedEntries
+            in
+                ( { state
+                    | checkedEntries =
+                        newSet
+                    , entries = List.map (filterCheckedEntries newSet) state.entries
+                  }
+                , Cmd.none
+                )
 
         _ ->
             ( state, Cmd.none )
 
 
-headerToEntryField : String -> Entry -> String
-headerToEntryField header entry =
+filterCheckedEntries : Set String -> Entry -> Entry
+filterCheckedEntries stringSet entry =
+    let
+        nameInSet =
+            Set.member entry.name stringSet
+
+        titleInSet =
+            Set.member entry.title stringSet
+
+        locationInSet =
+            Set.member entry.location stringSet
+    in
+        if nameInSet || titleInSet || locationInSet then
+            { entry | selectionType = Exclude }
+        else
+            { entry | selectionType = Include }
+
+
+filterEntries : String -> Entry -> Entry
+filterEntries query entry =
+    let
+        queryInName =
+            String.contains (String.toLower query) (String.toLower entry.name)
+
+        queryInTitle =
+            String.contains (String.toLower query) (String.toLower entry.title)
+
+        queryInLocation =
+            String.contains (String.toLower query) (String.toLower entry.location)
+    in
+        if queryInName || queryInTitle || queryInLocation then
+            { entry | selectionType = Include }
+        else
+            { entry | selectionType = Exclude }
+
+
+headerToEntryField : String -> State a -> Entry -> String
+headerToEntryField header state entry =
     case header of
         "Name" ->
-            entry.name
+            if String.contains (String.toLower state.query) (String.toLower entry.name) then
+                entry.name
+            else
+                ""
 
         "Title" ->
             entry.title
@@ -95,38 +160,6 @@ headerToEntryField header entry =
 
         _ ->
             ""
-
-
-setDropdown : State a -> ( State a, Cmd Msg )
-setDropdown state =
-    ( { state
-        | open = not state.open
-        , dropdownSelection = List.map (\entry -> entry.name) state.entries
-      }
-    , Cmd.none
-    )
-
-
-filterEntries : String -> List Entry -> List Entry
-filterEntries query entries =
-    List.map
-        (\entry ->
-            let
-                queryInName =
-                    String.contains (String.toLower query) (String.toLower entry.name)
-
-                queryInTitle =
-                    String.contains (String.toLower query) (String.toLower entry.title)
-
-                queryInLocation =
-                    String.contains (String.toLower query) (String.toLower entry.location)
-            in
-                if queryInName || queryInTitle || queryInLocation then
-                    { entry | selectionType = Include }
-                else
-                    { entry | selectionType = Exclude }
-        )
-        entries
 
 
 
@@ -199,11 +232,11 @@ showDropdown state =
             List.map
                 (\item ->
                     label []
-                        [ input [ type_ "checkbox" ] []
+                        [ input [ type_ "checkbox", checked <| not (Set.member item state.checkedEntries), onClick (FilterChecked item) ] []
                         , text item
                         ]
                 )
-                state.dropdownSelection
+                (Set.toList state.dropdownSelection)
     else
         text ""
 
