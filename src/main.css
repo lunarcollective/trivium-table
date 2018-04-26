@@ -57,6 +57,17 @@ img {
   display: flex;
   justify-content: space-between;
 }
+
+.dropdown-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid black;
+  width: 15rem;
+  margin: 5%;
+  padding: 1rem 4rem;
+  text-align: left;
+}
+
 .drop-down {
   width: 2rem;
   background: #eee;
