@@ -20,6 +20,11 @@ type Header
     | Location
 
 
+type Dropdown
+    = Open
+    | Closed
+
+
 type Dir
     = Asc
     | Desc
@@ -34,7 +39,7 @@ type alias State a =
     , query : String
     , entries : List Entry
     , selected : Maybe (List a)
-    , open : ( Bool, Header )
+    , open : ( Dropdown, Header )
     , dropdownSelection : Set String
     , checkedEntries : Set String
     , sortType : SortType
@@ -52,7 +57,7 @@ type alias Entry =
 
 init : ( State a, Cmd Msg )
 init =
-    ( State "" "" initEntries Nothing ( False, Name ) (Set.fromList []) (Set.fromList []) (SortType Asc Name), Cmd.none )
+    ( State "" "" initEntries Nothing ( Closed, Name ) (Set.fromList []) (Set.fromList []) (SortType Asc Name), Cmd.none )
 
 
 initEntries : List Entry
@@ -137,21 +142,21 @@ update msg state =
             ( state, Cmd.none )
 
 
-toggleFilter : String -> State a -> ( Bool, Header )
+toggleFilter : String -> State a -> ( Dropdown, Header )
 toggleFilter header state =
     let
         headerAction =
             setSortType header
     in
         case state.open of
-            ( True, hdr ) ->
+            ( Open, hdr ) ->
                 if hdr == headerAction then
-                    ( False, headerAction )
+                    ( Closed, headerAction )
                 else
-                    ( True, headerAction )
+                    ( Open, headerAction )
 
-            ( False, _ ) ->
-                ( True, headerAction )
+            ( Closed, _ ) ->
+                ( Open, headerAction )
 
 
 setDirection : Header -> State a -> Dir
@@ -159,14 +164,19 @@ setDirection sortType state =
     case state.sortType of
         SortType dir currentHeader ->
             if currentHeader == sortType then
-                case dir of
-                    Asc ->
-                        Desc
-
-                    Desc ->
-                        Asc
+                flipDir dir
             else
                 Asc
+
+
+flipDir : Dir -> Dir
+flipDir dir =
+    case dir of
+        Asc ->
+            Desc
+
+        Desc ->
+            Asc
 
 
 setSortType : String -> Header
@@ -307,7 +317,7 @@ tableBody entries =
 showDropdown : Header -> State a -> Html Msg
 showDropdown header state =
     case state.open of
-        ( True, hdr ) ->
+        ( Open, hdr ) ->
             if header == hdr then
                 div [ class "dropdown-list" ] <|
                     List.map
@@ -321,7 +331,7 @@ showDropdown header state =
             else
                 text ""
 
-        ( False, _ ) ->
+        ( Closed, _ ) ->
             text ""
 
 
