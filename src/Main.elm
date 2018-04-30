@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Html exposing (Html, text, div, input, label)
 import Html.Events exposing (onClick, onInput)
-import Html.Attributes exposing (class, value, type_, checked)
+import Html.Attributes exposing (class, value, type_, checked, placeholder)
 import Set exposing (Set)
 
 
@@ -34,7 +34,7 @@ type alias State a =
     , query : String
     , entries : List Entry
     , selected : Maybe (List a)
-    , open : Bool
+    , open : ( Bool, Header )
     , dropdownSelection : Set String
     , checkedEntries : Set String
     , sortType : SortType
@@ -52,7 +52,7 @@ type alias Entry =
 
 init : ( State a, Cmd Msg )
 init =
-    ( State "" "" initEntries Nothing False (Set.fromList []) (Set.fromList []) (SortType Asc Name), Cmd.none )
+    ( State "" "" initEntries Nothing ( False, Name ) (Set.fromList []) (Set.fromList []) (SortType Asc Name), Cmd.none )
 
 
 initEntries : List Entry
@@ -97,7 +97,13 @@ update msg state =
 
         Dropdown header ->
             ( { state
-                | open = not state.open
+                | open =
+                    case state.open of
+                        ( True, _ ) ->
+                            ( False, setSortType header )
+
+                        ( False, _ ) ->
+                            ( True, setSortType header )
                 , dropdownSelection = Set.fromList <| "All" :: List.map (headerToEntryField header state) state.entries
               }
             , Cmd.none
@@ -231,11 +237,8 @@ view : State a -> Html Msg
 view state =
     div [ class "body__container" ]
         [ div [ class "input__container" ]
-            [ input [ type_ "text", class "search-input", onInput UpdateQuery, value state.query ] []
-            , div [ class "query-text" ] [ text state.query ]
-            ]
+            [ input [ type_ "text", class "search-input", placeholder "Type text to filter...", onInput UpdateQuery, value state.query ] [] ]
         , div [ class "table__container" ] <| showEntries state
-        , div [] [ showDropdown state ]
         ]
 
 
@@ -251,23 +254,27 @@ showEntries state =
 
             _ ->
                 [ div [ class "table" ]
-                    [ div [ class "table__row headers" ] <| tableHeaders
+                    [ div [ class "table__row headers" ] <| tableHeaders state
                     , div [ class "table__body" ] <| tableBody filteredEntries
                     ]
                 ]
 
 
-tableHeaders : List (Html Msg)
-tableHeaders =
+tableHeaders : State a -> List (Html Msg)
+tableHeaders state =
     let
         headers =
-            [ "Name", "Title", "Location" ]
+            [ ( Name, "Name" ), ( Title, "Title" ), ( Location, "Location" ) ]
     in
         List.map
-            (\header ->
+            (\( action, string ) ->
                 div [ class "table__entry-block flex" ]
-                    [ div [ class "text sortable", onClick (AlphaSort header) ] [ text header ]
-                    , div [ class "drop-down", onClick (Dropdown header) ] [ text "^" ]
+                    [ div [ class "text sortable", onClick (AlphaSort string) ] [ text string ]
+                    , div [ class "drop-down-and-button" ]
+                        [ div [ class "drop-down", onClick (Dropdown string) ]
+                            [ text "+" ]
+                        , div [] [ showDropdown action state ]
+                        ]
                     ]
             )
             headers
@@ -286,20 +293,25 @@ tableBody entries =
         entries
 
 
-showDropdown : State a -> Html Msg
-showDropdown state =
-    if state.open then
-        div [ class "dropdown-list" ] <|
-            List.map
-                (\item ->
-                    label []
-                        [ input [ type_ "checkbox", checked <| not (Set.member item state.checkedEntries), onClick (FilterChecked item) ] []
-                        , text item
-                        ]
-                )
-                (Set.toList state.dropdownSelection)
-    else
-        text ""
+showDropdown : Header -> State a -> Html Msg
+showDropdown header state =
+    case state.open of
+        ( True, hdr ) ->
+            if header == hdr then
+                div [ class "dropdown-list" ] <|
+                    List.map
+                        (\item ->
+                            label []
+                                [ input [ type_ "checkbox", checked <| not (Set.member item state.checkedEntries), onClick (FilterChecked item) ] []
+                                , text item
+                                ]
+                        )
+                        (Set.toList state.dropdownSelection)
+            else
+                text ""
+
+        ( False, _ ) ->
+            text ""
 
 
 sortedEntries : State a -> List Entry -> List Entry
