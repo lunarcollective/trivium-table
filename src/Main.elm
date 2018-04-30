@@ -97,13 +97,7 @@ update msg state =
 
         Dropdown header ->
             ( { state
-                | open =
-                    case state.open of
-                        ( True, _ ) ->
-                            ( False, setSortType header )
-
-                        ( False, _ ) ->
-                            ( True, setSortType header )
+                | open = toggleFilter header state
                 , dropdownSelection = Set.fromList <| "All" :: List.map (headerToEntryField header state) state.entries
               }
             , Cmd.none
@@ -141,6 +135,23 @@ update msg state =
 
         _ ->
             ( state, Cmd.none )
+
+
+toggleFilter : String -> State a -> ( Bool, Header )
+toggleFilter header state =
+    let
+        headerAction =
+            setSortType header
+    in
+        case state.open of
+            ( True, hdr ) ->
+                if hdr == headerAction then
+                    ( False, headerAction )
+                else
+                    ( True, headerAction )
+
+            ( False, hdr ) ->
+                ( True, headerAction )
 
 
 setDirection : Header -> State a -> Dir
