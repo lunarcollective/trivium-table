@@ -150,7 +150,7 @@ toggleFilter header state =
                 else
                     ( True, headerAction )
 
-            ( False, hdr ) ->
+            ( False, _ ) ->
                 ( True, headerAction )
 
 
