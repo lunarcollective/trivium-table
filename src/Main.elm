@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Html exposing (Html, text, div, input, label)
 import Html.Events exposing (onClick, onInput)
-import Html.Attributes exposing (class, value, type_, checked)
+import Html.Attributes exposing (class, value, type_, checked, placeholder)
 import Set exposing (Set)
 
 
@@ -14,14 +14,35 @@ type SelectionType
     | Exclude
 
 
+type Header
+    = Name
+    | Title
+    | Location
+
+
+type Dropdown
+    = Open
+    | Closed
+
+
+type Dir
+    = Asc
+    | Desc
+
+
+type SortType
+    = SortType Dir Header
+
+
 type alias State a =
     { id : String
     , query : String
     , entries : List Entry
     , selected : Maybe (List a)
-    , open : Bool
+    , open : ( Dropdown, Header )
     , dropdownSelection : Set String
     , checkedEntries : Set String
+    , sortType : SortType
     }
 
 
@@ -30,23 +51,24 @@ type alias Entry =
     , title : String
     , location : String
     , selectionType : SelectionType
+    , checked : SelectionType
     }
 
 
 init : ( State a, Cmd Msg )
 init =
-    ( State "" "" initEntries Nothing False (Set.fromList []) (Set.fromList []), Cmd.none )
+    ( State "" "" initEntries Nothing ( Closed, Name ) (Set.fromList []) (Set.fromList []) (SortType Asc Name), Cmd.none )
 
 
 initEntries : List Entry
 initEntries =
-    [ { name = "Matt", title = "Lead Developer", location = "Austin", selectionType = Include }
-    , { name = "Justin", title = "Founder", location = "Texas", selectionType = Include }
-    , { name = "Bailey", title = "Developer", location = "Texas", selectionType = Include }
-    , { name = "Quincy", title = "Business", location = "Texas", selectionType = Include }
-    , { name = "Sarah", title = "Boss", location = "New Jersey", selectionType = Include }
-    , { name = "Carolyn", title = "Assistant Boss", location = "Austin", selectionType = Include }
-    , { name = "Luna", title = "Assistant to the Boss", location = "Moon", selectionType = Include }
+    [ { name = "Matt", title = "Lead Developer", location = "Austin", selectionType = Include, checked = Include }
+    , { name = "Justin", title = "Founder", location = "Texas", selectionType = Include, checked = Include }
+    , { name = "Bailey", title = "Developer", location = "Texas", selectionType = Include, checked = Include }
+    , { name = "Quincy", title = "Business", location = "Texas", selectionType = Include, checked = Include }
+    , { name = "Sarah", title = "Boss", location = "New Jersey", selectionType = Include, checked = Include }
+    , { name = "Carolyn", title = "Assistant Boss", location = "Austin", selectionType = Include, checked = Include }
+    , { name = "Luna", title = "Assistant to the Boss", location = "Moon", selectionType = Include, checked = Include }
     ]
 
 
@@ -59,6 +81,7 @@ type Msg
     | UpdateQuery String
     | Dropdown String
     | FilterChecked String
+    | AlphaSort String
 
 
 toName : { a | name : String } -> String
@@ -73,15 +96,13 @@ update msg state =
             ( { state
                 | query = query
                 , entries = List.map (filterEntries query) state.entries
-
-                -- , dropdownSelection = Set.filter (\item -> String.contains (String.toLower query) (String.toLower item)) state.dropdownSelection
               }
             , Cmd.none
             )
 
         Dropdown header ->
             ( { state
-                | open = not state.open
+                | open = toggleFilter header state
                 , dropdownSelection = Set.fromList <| "All" :: List.map (headerToEntryField header state) state.entries
               }
             , Cmd.none
@@ -103,8 +124,75 @@ update msg state =
                 , Cmd.none
                 )
 
+        AlphaSort header ->
+            let
+                sortType =
+                    setSortType header
+
+                direction =
+                    setDirection sortType state
+            in
+                ( { state
+                    | sortType = SortType direction sortType
+                  }
+                , Cmd.none
+                )
+
         _ ->
             ( state, Cmd.none )
+
+
+toggleFilter : String -> State a -> ( Dropdown, Header )
+toggleFilter header state =
+    let
+        headerAction =
+            setSortType header
+    in
+        case state.open of
+            ( Open, hdr ) ->
+                if hdr == headerAction then
+                    ( Closed, headerAction )
+                else
+                    ( Open, headerAction )
+
+            ( Closed, _ ) ->
+                ( Open, headerAction )
+
+
+setDirection : Header -> State a -> Dir
+setDirection sortType state =
+    case state.sortType of
+        SortType dir currentHeader ->
+            if currentHeader == sortType then
+                flipDir dir
+            else
+                Asc
+
+
+flipDir : Dir -> Dir
+flipDir dir =
+    case dir of
+        Asc ->
+            Desc
+
+        Desc ->
+            Asc
+
+
+setSortType : String -> Header
+setSortType header =
+    case header of
+        "Name" ->
+            Name
+
+        "Title" ->
+            Title
+
+        "Location" ->
+            Location
+
+        _ ->
+            Name
 
 
 filterCheckedEntries : Set String -> Entry -> Entry
@@ -120,9 +208,9 @@ filterCheckedEntries stringSet entry =
             Set.member entry.location stringSet
     in
         if nameInSet || titleInSet || locationInSet then
-            { entry | selectionType = Exclude }
+            { entry | checked = Exclude }
         else
-            { entry | selectionType = Include }
+            { entry | checked = Include }
 
 
 filterEntries : String -> Entry -> Entry
@@ -170,11 +258,8 @@ view : State a -> Html Msg
 view state =
     div [ class "body__container" ]
         [ div [ class "input__container" ]
-            [ input [ type_ "text", class "search-input", onInput UpdateQuery, value state.query ] []
-            , div [ class "query-text" ] [ text state.query ]
-            ]
+            [ input [ type_ "text", class "search-input", placeholder "Type text to filter...", onInput UpdateQuery, value state.query ] [] ]
         , div [ class "table__container" ] <| showEntries state
-        , div [] [ showDropdown state ]
         ]
 
 
@@ -182,7 +267,7 @@ showEntries : State a -> List (Html Msg)
 showEntries state =
     let
         filteredEntries =
-            List.filter (\entry -> entry.selectionType == Include) state.entries
+            List.filter (\entry -> entry.selectionType == Include && entry.checked == Include) state.entries |> sortedEntries state
     in
         case filteredEntries of
             [] ->
@@ -190,23 +275,27 @@ showEntries state =
 
             _ ->
                 [ div [ class "table" ]
-                    [ div [ class "table__row headers" ] <| tableHeaders
+                    [ div [ class "table__row headers" ] <| tableHeaders state
                     , div [ class "table__body" ] <| tableBody filteredEntries
                     ]
                 ]
 
 
-tableHeaders : List (Html Msg)
-tableHeaders =
+tableHeaders : State a -> List (Html Msg)
+tableHeaders state =
     let
         headers =
-            [ "Name", "Title", "Location" ]
+            [ ( Name, "Name" ), ( Title, "Title" ), ( Location, "Location" ) ]
     in
         List.map
-            (\header ->
+            (\( action, string ) ->
                 div [ class "table__entry-block flex" ]
-                    [ div [ class "text" ] [ text header ]
-                    , div [ class "drop-down", onClick (Dropdown header) ] [ text "^" ]
+                    [ div [ class "text sortable", onClick (AlphaSort string) ] [ text string ]
+                    , div [ class "drop-down-and-button" ]
+                        [ div [ class "drop-down", onClick (Dropdown string) ]
+                            [ text "+" ]
+                        , div [] [ showDropdown action state ]
+                        ]
                     ]
             )
             headers
@@ -225,20 +314,49 @@ tableBody entries =
         entries
 
 
-showDropdown : State a -> Html Msg
-showDropdown state =
-    if state.open then
-        div [ class "dropdown-list" ] <|
-            List.map
-                (\item ->
-                    label []
-                        [ input [ type_ "checkbox", checked <| not (Set.member item state.checkedEntries), onClick (FilterChecked item) ] []
-                        , text item
-                        ]
-                )
-                (Set.toList state.dropdownSelection)
-    else
-        text ""
+showDropdown : Header -> State a -> Html Msg
+showDropdown header state =
+    case state.open of
+        ( Open, hdr ) ->
+            if header == hdr then
+                div [ class "dropdown-list" ] <|
+                    List.map
+                        (\item ->
+                            label []
+                                [ input [ type_ "checkbox", checked <| not (Set.member item state.checkedEntries), onClick (FilterChecked item) ] []
+                                , text item
+                                ]
+                        )
+                        (Set.toList state.dropdownSelection)
+            else
+                text ""
+
+        ( Closed, _ ) ->
+            text ""
+
+
+sortedEntries : State a -> List Entry -> List Entry
+sortedEntries state entries =
+    case state.sortType of
+        SortType dir header ->
+            let
+                sorted =
+                    case header of
+                        Name ->
+                            List.sortBy .name entries
+
+                        Title ->
+                            List.sortBy .title entries
+
+                        Location ->
+                            List.sortBy .location entries
+            in
+                case dir of
+                    Asc ->
+                        sorted
+
+                    Desc ->
+                        List.reverse sorted
 
 
 
