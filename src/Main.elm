@@ -14,6 +14,21 @@ type SelectionType
     | Exclude
 
 
+type Header
+    = Name
+    | Title
+    | Location
+
+
+type Dir
+    = Asc
+    | Desc
+
+
+type SortType
+    = SortType Dir Header
+
+
 type alias State a =
     { id : String
     , query : String
@@ -22,6 +37,7 @@ type alias State a =
     , open : Bool
     , dropdownSelection : Set String
     , checkedEntries : Set String
+    , sortType : SortType
     }
 
 
@@ -30,23 +46,24 @@ type alias Entry =
     , title : String
     , location : String
     , selectionType : SelectionType
+    , checked : SelectionType
     }
 
 
 init : ( State a, Cmd Msg )
 init =
-    ( State "" "" initEntries Nothing False (Set.fromList []) (Set.fromList []), Cmd.none )
+    ( State "" "" initEntries Nothing False (Set.fromList []) (Set.fromList []) (SortType Asc Name), Cmd.none )
 
 
 initEntries : List Entry
 initEntries =
-    [ { name = "Matt", title = "Lead Developer", location = "Austin", selectionType = Include }
-    , { name = "Justin", title = "Founder", location = "Texas", selectionType = Include }
-    , { name = "Bailey", title = "Developer", location = "Texas", selectionType = Include }
-    , { name = "Quincy", title = "Business", location = "Texas", selectionType = Include }
-    , { name = "Sarah", title = "Boss", location = "New Jersey", selectionType = Include }
-    , { name = "Carolyn", title = "Assistant Boss", location = "Austin", selectionType = Include }
-    , { name = "Luna", title = "Assistant to the Boss", location = "Moon", selectionType = Include }
+    [ { name = "Matt", title = "Lead Developer", location = "Austin", selectionType = Include, checked = Include }
+    , { name = "Justin", title = "Founder", location = "Texas", selectionType = Include, checked = Include }
+    , { name = "Bailey", title = "Developer", location = "Texas", selectionType = Include, checked = Include }
+    , { name = "Quincy", title = "Business", location = "Texas", selectionType = Include, checked = Include }
+    , { name = "Sarah", title = "Boss", location = "New Jersey", selectionType = Include, checked = Include }
+    , { name = "Carolyn", title = "Assistant Boss", location = "Austin", selectionType = Include, checked = Include }
+    , { name = "Luna", title = "Assistant to the Boss", location = "Moon", selectionType = Include, checked = Include }
     ]
 
 
@@ -59,6 +76,7 @@ type Msg
     | UpdateQuery String
     | Dropdown String
     | FilterChecked String
+    | AlphaSort String
 
 
 toName : { a | name : String } -> String
@@ -73,8 +91,6 @@ update msg state =
             ( { state
                 | query = query
                 , entries = List.map (filterEntries query) state.entries
-
-                -- , dropdownSelection = Set.filter (\item -> String.contains (String.toLower query) (String.toLower item)) state.dropdownSelection
               }
             , Cmd.none
             )
@@ -103,8 +119,53 @@ update msg state =
                 , Cmd.none
                 )
 
+        AlphaSort header ->
+            let
+                sortType =
+                    setSortType header
+
+                direction =
+                    setDirection sortType state
+            in
+                ( { state
+                    | sortType = SortType direction sortType
+                  }
+                , Cmd.none
+                )
+
         _ ->
             ( state, Cmd.none )
+
+
+setDirection : Header -> State a -> Dir
+setDirection sortType state =
+    case state.sortType of
+        SortType dir currentHeader ->
+            if currentHeader == sortType then
+                case dir of
+                    Asc ->
+                        Desc
+
+                    Desc ->
+                        Asc
+            else
+                Asc
+
+
+setSortType : String -> Header
+setSortType header =
+    case header of
+        "Name" ->
+            Name
+
+        "Title" ->
+            Title
+
+        "Location" ->
+            Location
+
+        _ ->
+            Name
 
 
 filterCheckedEntries : Set String -> Entry -> Entry
@@ -120,9 +181,9 @@ filterCheckedEntries stringSet entry =
             Set.member entry.location stringSet
     in
         if nameInSet || titleInSet || locationInSet then
-            { entry | selectionType = Exclude }
+            { entry | checked = Exclude }
         else
-            { entry | selectionType = Include }
+            { entry | checked = Include }
 
 
 filterEntries : String -> Entry -> Entry
@@ -182,7 +243,7 @@ showEntries : State a -> List (Html Msg)
 showEntries state =
     let
         filteredEntries =
-            List.filter (\entry -> entry.selectionType == Include) state.entries
+            List.filter (\entry -> entry.selectionType == Include && entry.checked == Include) state.entries |> sortedEntries state
     in
         case filteredEntries of
             [] ->
@@ -205,7 +266,7 @@ tableHeaders =
         List.map
             (\header ->
                 div [ class "table__entry-block flex" ]
-                    [ div [ class "text" ] [ text header ]
+                    [ div [ class "text sortable", onClick (AlphaSort header) ] [ text header ]
                     , div [ class "drop-down", onClick (Dropdown header) ] [ text "^" ]
                     ]
             )
@@ -239,6 +300,30 @@ showDropdown state =
                 (Set.toList state.dropdownSelection)
     else
         text ""
+
+
+sortedEntries : State a -> List Entry -> List Entry
+sortedEntries state entries =
+    case state.sortType of
+        SortType dir header ->
+            let
+                sorted =
+                    case header of
+                        Name ->
+                            List.sortBy .name entries
+
+                        Title ->
+                            List.sortBy .title entries
+
+                        Location ->
+                            List.sortBy .location entries
+            in
+                case dir of
+                    Asc ->
+                        sorted
+
+                    Desc ->
+                        List.reverse sorted
 
 
 

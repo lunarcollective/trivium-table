@@ -58,6 +58,10 @@ img {
   justify-content: space-between;
 }
 
+.sortable {
+  cursor: pointer;
+}
+
 .dropdown-list {
   display: flex;
   flex-direction: column;
