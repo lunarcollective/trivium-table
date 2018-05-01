@@ -34,11 +34,11 @@ type SortType
     = SortType Dir Header
 
 
-type alias State a =
+type alias State =
     { id : String
     , query : String
     , entries : List Entry
-    , selected : Maybe (List a)
+    , selected : List Entry
     , open : ( Dropdown, Header )
     , dropdownSelection : Set String
     , checkedEntries : Set String
@@ -55,9 +55,9 @@ type alias Entry =
     }
 
 
-init : ( State a, Cmd Msg )
+init : ( State, Cmd Msg )
 init =
-    ( State "" "" initEntries Nothing ( Closed, Name ) (Set.fromList []) (Set.fromList []) (SortType Asc Name), Cmd.none )
+    ( State "" "" initEntries [] ( Closed, Name ) (Set.fromList []) (Set.fromList []) (SortType Asc Name), Cmd.none )
 
 
 initEntries : List Entry
@@ -82,6 +82,8 @@ type Msg
     | Dropdown String
     | FilterChecked String
     | AlphaSort String
+    | Select Entry
+    | Deselect Entry
 
 
 toName : { a | name : String } -> String
@@ -89,7 +91,7 @@ toName obj =
     obj.name
 
 
-update : Msg -> State a -> ( State a, Cmd Msg )
+update : Msg -> State -> ( State, Cmd Msg )
 update msg state =
     case msg of
         UpdateQuery query ->
@@ -138,11 +140,27 @@ update msg state =
                 , Cmd.none
                 )
 
+        Select entry ->
+            ( { state | selected = insert entry state.selected }, Cmd.none )
+
+        Deselect entry ->
+            ( { state | selected = remove entry state.selected }, Cmd.none )
+
         _ ->
             ( state, Cmd.none )
 
 
-toggleFilter : String -> State a -> ( Dropdown, Header )
+insert : Entry -> List Entry -> List Entry
+insert entry selected =
+    entry :: selected
+
+
+remove : Entry -> List Entry -> List Entry
+remove entry selected =
+    List.filter (\e -> e /= entry) selected
+
+
+toggleFilter : String -> State -> ( Dropdown, Header )
 toggleFilter header state =
     let
         headerAction =
@@ -159,7 +177,7 @@ toggleFilter header state =
                 ( Open, headerAction )
 
 
-setDirection : Header -> State a -> Dir
+setDirection : Header -> State -> Dir
 setDirection sortType state =
     case state.sortType of
         SortType dir currentHeader ->
@@ -231,7 +249,7 @@ filterEntries query entry =
             { entry | selectionType = Exclude }
 
 
-headerToEntryField : String -> State a -> Entry -> String
+headerToEntryField : String -> State -> Entry -> String
 headerToEntryField header state entry =
     case header of
         "Name" ->
@@ -254,7 +272,7 @@ headerToEntryField header state entry =
 ---- VIEW ----
 
 
-view : State a -> Html Msg
+view : State -> Html Msg
 view state =
     div [ class "body__container" ]
         [ div [ class "input__container" ]
@@ -263,7 +281,7 @@ view state =
         ]
 
 
-showEntries : State a -> List (Html Msg)
+showEntries : State -> List (Html Msg)
 showEntries state =
     let
         filteredEntries =
@@ -276,37 +294,39 @@ showEntries state =
             _ ->
                 [ div [ class "table" ]
                     [ div [ class "table__row headers" ] <| tableHeaders state
-                    , div [ class "table__body" ] <| tableBody filteredEntries
+                    , div [ class "table__body" ] <| tableBody filteredEntries state.selected
                     ]
                 ]
 
 
-tableHeaders : State a -> List (Html Msg)
+tableHeaders : State -> List (Html Msg)
 tableHeaders state =
     let
         headers =
             [ ( Name, "Name" ), ( Title, "Title" ), ( Location, "Location" ) ]
     in
-        List.map
-            (\( action, string ) ->
-                div [ class "table__entry-block flex" ]
-                    [ div [ class "text sortable", onClick (AlphaSort string) ] [ text string ]
-                    , div [ class "drop-down-and-button" ]
-                        [ div [ class "drop-down", onClick (Dropdown string) ]
-                            [ text "+" ]
-                        , div [] [ showDropdown action state ]
+        div [ class "table__entry-block flex" ] [ text "" ]
+            :: List.map
+                (\( action, string ) ->
+                    div [ class "table__entry-block flex" ]
+                        [ div [ class "text sortable", onClick (AlphaSort string) ] [ text string ]
+                        , div [ class "drop-down-and-button" ]
+                            [ div [ class "drop-down", onClick (Dropdown string) ]
+                                [ text "+" ]
+                            , div [] [ showDropdown action state ]
+                            ]
                         ]
-                    ]
-            )
-            headers
+                )
+                headers
 
 
-tableBody : List Entry -> List (Html Msg)
-tableBody entries =
+tableBody : List Entry -> List Entry -> List (Html Msg)
+tableBody entries selected =
     List.map
         (\entry ->
             div [ class "table__row" ]
-                [ div [ class "table__entry-block" ] [ text entry.name ]
+                [ checkbox selected entry
+                , div [ class "table__entry-block" ] [ text entry.name ]
                 , div [ class "table__entry-block" ] [ text entry.title ]
                 , div [ class "table__entry-block" ] [ text entry.location ]
                 ]
@@ -314,7 +334,22 @@ tableBody entries =
         entries
 
 
-showDropdown : Header -> State a -> Html Msg
+checkbox : List Entry -> Entry -> Html Msg
+checkbox selected entry =
+    let
+        isChecked =
+            List.member entry selected
+
+        message =
+            if isChecked then
+                Deselect entry
+            else
+                Select entry
+    in
+        input [ type_ "checkbox", checked isChecked, onClick message ] []
+
+
+showDropdown : Header -> State -> Html Msg
 showDropdown header state =
     case state.open of
         ( Open, hdr ) ->
@@ -335,7 +370,7 @@ showDropdown header state =
             text ""
 
 
-sortedEntries : State a -> List Entry -> List Entry
+sortedEntries : State -> List Entry -> List Entry
 sortedEntries state entries =
     case state.sortType of
         SortType dir header ->
@@ -363,7 +398,7 @@ sortedEntries state entries =
 ---- PROGRAM ----
 
 
-main : Program Never (State a) Msg
+main : Program Never State Msg
 main =
     Html.program
         { view = view
