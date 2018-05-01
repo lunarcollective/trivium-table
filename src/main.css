@@ -61,18 +61,18 @@ img {
   height: 1.5rem;
 }
 
-.table__row.headers .text {
+.table__row.headers .table__entry--text {
   font-weight: bold;
   color: gray;
 }
 
-.table__entry-block {
+.table__entry--block {
   flex: 0 0 26%;
   border-right: 1px solid lightgray;
   text-align: left;
   padding: 0 2rem;
 }
-.table__entry-block:first-child {
+.table__entry--block:first-child {
   flex: 0 0 1.1rem;
   border: none;
   padding: 0;
@@ -82,7 +82,7 @@ img {
   display: flex;
 }
 
-.table__entry-block.flex {
+.table__entry--block.flex {
   display: flex;
   justify-content: space-between;
 }
@@ -104,7 +104,7 @@ img {
   top: 1rem;
 }
 
-.table__entry-block:hover .drop-down {
+.table__entry--block:hover .drop-down {
   display: block;
   background: #ddd;
   position: absolute;
