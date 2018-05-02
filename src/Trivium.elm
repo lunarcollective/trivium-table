@@ -1,17 +1,8 @@
-module Main exposing (..)
+module Trivium exposing (..)
 
 import Html exposing (Html, text, div, input, label)
 import Html.Events exposing (onClick, onInput)
 import Html.Attributes exposing (class, value, type_, checked, placeholder)
-import Set exposing (Set)
-
-
----- MODEL ----
-
-
-type SelectionType
-    = Include
-    | Exclude
 
 
 type Header
@@ -34,11 +25,12 @@ type SortType
     = SortType Dir Header
 
 
-type alias State =
+type alias State a =
     { id : String
     , query : String
-    , entries : List Entry
-    , selected : List Entry
+    , entries : List a
+    , include : a -> Bool
+    , selected : List a
     , open : ( Dropdown, Header )
     , dropdownSelection : List ( String, Header )
     , uncheckedEntries : List ( String, Header )
@@ -46,21 +38,13 @@ type alias State =
     }
 
 
-type alias Entry =
-    { name : String
-    , title : String
-    , location : String
-    , selectionType : SelectionType
-    , checked : SelectionType
-    }
-
-
-init : ( State, Cmd Msg )
+init : ( State a, Cmd msg )
 init =
     ( State
         ""
         ""
-        initEntries
+        []
+        (\_ -> False)
         []
         ( Closed, Name )
         ([])
@@ -70,38 +54,22 @@ init =
     )
 
 
-initEntries : List Entry
-initEntries =
-    [ { name = "Matt", title = "Lead Developer", location = "Austin", selectionType = Include, checked = Include }
-    , { name = "Justin", title = "Founder", location = "Texas", selectionType = Include, checked = Include }
-    , { name = "Bailey", title = "Developer", location = "Texas", selectionType = Include, checked = Include }
-    , { name = "Quincy", title = "Business", location = "Texas", selectionType = Include, checked = Include }
-    , { name = "Sarah", title = "Boss", location = "New Jersey", selectionType = Include, checked = Include }
-    , { name = "Carolyn", title = "Assistant Boss", location = "Austin", selectionType = Include, checked = Include }
-    , { name = "Luna", title = "Assistant to the Boss", location = "Moon", selectionType = Include, checked = Include }
-    ]
+initWith : List a -> (a -> Bool) -> State a
+initWith entries include =
+    State "" "" entries include [] ( Closed, Name ) ([]) ([]) (SortType Asc Name)
 
 
-
----- UPDATE ----
-
-
-type Msg
+type Msg b
     = NoOp
     | UpdateQuery String
     | Dropdown String
     | FilterChecked ( String, Header )
     | AlphaSort String
-    | Select Entry
-    | Deselect Entry
+    | Select b
+    | Deselect b
 
 
-toName : { a | name : String } -> String
-toName obj =
-    obj.name
-
-
-update : Msg -> State -> ( State, Cmd Msg )
+update : Msg a -> State a -> ( State a, Cmd (Msg a) )
 update msg state =
     case msg of
         UpdateQuery query ->
@@ -173,17 +141,16 @@ update msg state =
             ( state, Cmd.none )
 
 
-insert : Entry -> List Entry -> List Entry
 insert entry selected =
     entry :: selected
 
 
-remove : Entry -> List Entry -> List Entry
+remove : a -> List a -> List a
 remove entry selected =
     List.filter (\e -> e /= entry) selected
 
 
-toggleFilter : String -> State -> ( Dropdown, Header )
+toggleFilter : String -> State a -> ( Dropdown, Header )
 toggleFilter header state =
     let
         headerAction =
@@ -200,7 +167,7 @@ toggleFilter header state =
                 ( Open, headerAction )
 
 
-setDirection : Header -> State -> Dir
+setDirection : Header -> State a -> Dir
 setDirection sortType state =
     case state.sortType of
         SortType dir currentHeader ->
@@ -220,17 +187,22 @@ flipDir dir =
             Asc
 
 
-getEntryString : Header -> Entry -> String
-getEntryString header entry =
-    case header of
-        Name ->
-            entry.name
+getEntryString h e =
+    ""
 
-        Title ->
-            entry.title
 
-        Location ->
-            entry.location
+
+-- getEntryString : Header -> { a | name : String, title : String, location : String } -> String
+-- getEntryString header entry =
+--     case header of
+--         Name ->
+--             entry.name
+--
+--         Title ->
+--             entry.title
+--
+--         Location ->
+--             entry.location
 
 
 setSortType : String -> Header
@@ -249,7 +221,6 @@ setSortType header =
             Name
 
 
-filterUncheckedEntries : ( String, Header ) -> List ( String, Header ) -> Entry -> Entry
 filterUncheckedEntries ( item, header ) filterSet entry =
     let
         nameInSet =
@@ -270,42 +241,50 @@ filterUncheckedEntries ( item, header ) filterSet entry =
             { entry | checked = Include }
 
 
-filterEntries : String -> Entry -> Entry
 filterEntries query entry =
-    let
-        queryInName =
-            String.contains (String.toLower query) (String.toLower entry.name)
-
-        queryInTitle =
-            String.contains (String.toLower query) (String.toLower entry.title)
-
-        queryInLocation =
-            String.contains (String.toLower query) (String.toLower entry.location)
-    in
-        if queryInName || queryInTitle || queryInLocation then
-            { entry | selectionType = Include }
-        else
-            { entry | selectionType = Exclude }
+    entry
 
 
-headerToEntryField : Header -> State -> Entry -> ( String, Header )
+
+-- filterEntries : String -> { a | selectionType : SelectionType, name : String, title : String, location : String } -> { a | selectionType : SelectionType, name : String, title : String, location : String }
+-- filterEntries query entry =
+--     let
+--         queryInName =
+--             String.contains (String.toLower query) (String.toLower entry.name)
+--
+--         queryInTitle =
+--             String.contains (String.toLower query) (String.toLower entry.title)
+--
+--         queryInLocation =
+--             String.contains (String.toLower query) (String.toLower entry.location)
+--     in
+--         if queryInName || queryInTitle || queryInLocation then
+--             { entry | selectionType = Include }
+--         else
+--             { entry | selectionType = Exclude }
+
+
 headerToEntryField sortType state entry =
-    case sortType of
-        Name ->
-            ( entry.name, sortType )
-
-        Title ->
-            ( entry.title, sortType )
-
-        Location ->
-            ( entry.location, sortType )
+    ( "", sortType )
 
 
 
----- VIEW ----
+-- headerToEntryField : Header -> State a -> { a | name : String, title : String, location : String } -> ( String, Header )
+-- headerToEntryField sortType state entry =
+--     case sortType of
+--         Name ->
+--             ( entry.name, sortType )
+--
+--         Title ->
+--             ( entry.title, sortType )
+--
+--         Location ->
+--             ( entry.location, sortType )
+--
+--
+-- view : State a -> Html (Msg a)
 
 
-view : State -> Html Msg
 view state =
     div [ class "body__container" ]
         [ div [ class "input__container" ]
@@ -319,11 +298,14 @@ view state =
         ]
 
 
-showEntries : State -> List (Html Msg)
+
+-- showEntries : State a -> List (Html (Msg a))
+
+
 showEntries state =
     let
         filteredEntries =
-            List.filter (\entry -> entry.selectionType == Include && entry.checked == Include) state.entries |> sortedEntries state
+            List.filter state.include state.entries |> sortedEntries state
     in
         case filteredEntries of
             [] ->
@@ -333,7 +315,10 @@ showEntries state =
                 [ div [] <| tableBody filteredEntries state.selected ]
 
 
-tableHeaders : State -> List (Html Msg)
+
+-- tableHeaders : State { a | name : String, title : String, location : String } -> List (Html Msg)
+
+
 tableHeaders state =
     let
         headers =
@@ -354,7 +339,10 @@ tableHeaders state =
                 headers
 
 
-tableBody : List Entry -> List Entry -> List (Html Msg)
+
+-- tableBody : List { a | name : String, title : String, location : String } -> List { a | name : String, title : String, location : String } -> List (Html (Msg { a | name : String, title : String, location : String }))
+
+
 tableBody entries selected =
     List.map
         (\entry ->
@@ -368,7 +356,11 @@ tableBody entries selected =
         entries
 
 
-checkbox : List Entry -> Entry -> Html Msg
+
+--
+
+
+checkbox : List a -> a -> Html (Msg a)
 checkbox selected entry =
     let
         isChecked =
@@ -383,7 +375,7 @@ checkbox selected entry =
         input [ type_ "checkbox", checked isChecked, onClick message ] []
 
 
-showDropdown : Header -> State -> Html Msg
+showDropdown : Header -> State a -> Html (Msg a)
 showDropdown header state =
     case state.open of
         ( Open, hdr ) ->
@@ -404,7 +396,11 @@ showDropdown header state =
             text ""
 
 
-sortedEntries : State -> List Entry -> List Entry
+
+--
+-- sortedEntries : State a -> List { a | name : String, title : String, location : String } -> List { a | name : String, title : String, location : String }
+
+
 sortedEntries state entries =
     case state.sortType of
         SortType dir header ->
@@ -429,10 +425,11 @@ sortedEntries state entries =
 
 
 
+--
 ---- PROGRAM ----
+-- main : Program Never (State a) (Msg a)
 
 
-main : Program Never State Msg
 main =
     Html.program
         { view = view
