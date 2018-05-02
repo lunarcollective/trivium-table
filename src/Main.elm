@@ -34,14 +34,14 @@ type SortType
     = SortType Dir Header
 
 
-type alias State a =
+type alias State =
     { id : String
     , query : String
     , entries : List Entry
-    , selected : Maybe (List a)
+    , selected : List Entry
     , open : ( Dropdown, Header )
-    , dropdownSelection : Set String
-    , checkedEntries : Set String
+    , dropdownSelection : List ( String, Header )
+    , uncheckedEntries : List ( String, Header )
     , sortType : SortType
     }
 
@@ -55,9 +55,19 @@ type alias Entry =
     }
 
 
-init : ( State a, Cmd Msg )
+init : ( State, Cmd Msg )
 init =
-    ( State "" "" initEntries Nothing ( Closed, Name ) (Set.fromList []) (Set.fromList []) (SortType Asc Name), Cmd.none )
+    ( State
+        ""
+        ""
+        initEntries
+        []
+        ( Closed, Name )
+        ([])
+        ([])
+        (SortType Asc Name)
+    , Cmd.none
+    )
 
 
 initEntries : List Entry
@@ -80,8 +90,10 @@ type Msg
     = NoOp
     | UpdateQuery String
     | Dropdown String
-    | FilterChecked String
+    | FilterChecked ( String, Header )
     | AlphaSort String
+    | Select Entry
+    | Deselect Entry
 
 
 toName : { a | name : String } -> String
@@ -89,7 +101,7 @@ toName obj =
     obj.name
 
 
-update : Msg -> State a -> ( State a, Cmd Msg )
+update : Msg -> State -> ( State, Cmd Msg )
 update msg state =
     case msg of
         UpdateQuery query ->
@@ -101,25 +113,38 @@ update msg state =
             )
 
         Dropdown header ->
-            ( { state
-                | open = toggleFilter header state
-                , dropdownSelection = Set.fromList <| "All" :: List.map (headerToEntryField header state) state.entries
-              }
-            , Cmd.none
-            )
-
-        FilterChecked string ->
             let
-                newSet =
-                    if Set.member string state.checkedEntries then
-                        Set.remove string state.checkedEntries
-                    else
-                        Set.insert string state.checkedEntries
+                sortType =
+                    setSortType header
             in
                 ( { state
-                    | checkedEntries =
-                        newSet
-                    , entries = List.map (filterCheckedEntries newSet) state.entries
+                    | open = toggleFilter header state
+                    , dropdownSelection = ( "All", sortType ) :: List.map (headerToEntryField sortType state) state.entries
+                  }
+                , Cmd.none
+                )
+
+        FilterChecked ( item, header ) ->
+            let
+                filterSet =
+                    case ( item, header ) of
+                        ( "All", header ) ->
+                            if List.member ( "All", header ) state.uncheckedEntries then
+                                List.filter
+                                    (\( _, hdr ) -> hdr /= header)
+                                    state.uncheckedEntries
+                            else
+                                ( "All", header ) :: state.uncheckedEntries ++ List.map (\entry -> ( getEntryString header entry, header )) state.entries
+
+                        ( item, header ) ->
+                            if List.member ( item, header ) state.uncheckedEntries then
+                                List.filter (\( itm, hdr ) -> ( itm, hdr ) /= ( item, header )) state.uncheckedEntries
+                            else
+                                ( item, header ) :: state.uncheckedEntries
+            in
+                ( { state
+                    | uncheckedEntries = filterSet
+                    , entries = List.map (filterUncheckedEntries ( item, header ) filterSet) state.entries
                   }
                 , Cmd.none
                 )
@@ -138,11 +163,27 @@ update msg state =
                 , Cmd.none
                 )
 
+        Select entry ->
+            ( { state | selected = insert entry state.selected }, Cmd.none )
+
+        Deselect entry ->
+            ( { state | selected = remove entry state.selected }, Cmd.none )
+
         _ ->
             ( state, Cmd.none )
 
 
-toggleFilter : String -> State a -> ( Dropdown, Header )
+insert : Entry -> List Entry -> List Entry
+insert entry selected =
+    entry :: selected
+
+
+remove : Entry -> List Entry -> List Entry
+remove entry selected =
+    List.filter (\e -> e /= entry) selected
+
+
+toggleFilter : String -> State -> ( Dropdown, Header )
 toggleFilter header state =
     let
         headerAction =
@@ -159,7 +200,7 @@ toggleFilter header state =
                 ( Open, headerAction )
 
 
-setDirection : Header -> State a -> Dir
+setDirection : Header -> State -> Dir
 setDirection sortType state =
     case state.sortType of
         SortType dir currentHeader ->
@@ -179,6 +220,19 @@ flipDir dir =
             Asc
 
 
+getEntryString : Header -> Entry -> String
+getEntryString header entry =
+    case header of
+        Name ->
+            entry.name
+
+        Title ->
+            entry.title
+
+        Location ->
+            entry.location
+
+
 setSortType : String -> Header
 setSortType header =
     case header of
@@ -195,17 +249,20 @@ setSortType header =
             Name
 
 
-filterCheckedEntries : Set String -> Entry -> Entry
-filterCheckedEntries stringSet entry =
+filterUncheckedEntries : ( String, Header ) -> List ( String, Header ) -> Entry -> Entry
+filterUncheckedEntries ( item, header ) filterSet entry =
     let
         nameInSet =
-            Set.member entry.name stringSet
+            List.member ( entry.name, Name ) filterSet
 
         titleInSet =
-            Set.member entry.title stringSet
+            List.member ( entry.title, Title ) filterSet
 
         locationInSet =
-            Set.member entry.location stringSet
+            List.member ( entry.location, Location ) filterSet
+
+        headers =
+            [ Name, Title, Location ]
     in
         if nameInSet || titleInSet || locationInSet then
             { entry | checked = Exclude }
@@ -231,39 +288,38 @@ filterEntries query entry =
             { entry | selectionType = Exclude }
 
 
-headerToEntryField : String -> State a -> Entry -> String
-headerToEntryField header state entry =
-    case header of
-        "Name" ->
-            if String.contains (String.toLower state.query) (String.toLower entry.name) then
-                entry.name
-            else
-                ""
+headerToEntryField : Header -> State -> Entry -> ( String, Header )
+headerToEntryField sortType state entry =
+    case sortType of
+        Name ->
+            ( entry.name, sortType )
 
-        "Title" ->
-            entry.title
+        Title ->
+            ( entry.title, sortType )
 
-        "Location" ->
-            entry.location
-
-        _ ->
-            ""
+        Location ->
+            ( entry.location, sortType )
 
 
 
 ---- VIEW ----
 
 
-view : State a -> Html Msg
+view : State -> Html Msg
 view state =
     div [ class "body__container" ]
         [ div [ class "input__container" ]
             [ input [ type_ "text", class "search-input", placeholder "Type text to filter...", onInput UpdateQuery, value state.query ] [] ]
-        , div [ class "table__container" ] <| showEntries state
+        , div [ class "table__container" ]
+            [ div [ class "table" ]
+                [ div [ class "table__row headers" ] <| tableHeaders state
+                , div [] <| showEntries state
+                ]
+            ]
         ]
 
 
-showEntries : State a -> List (Html Msg)
+showEntries : State -> List (Html Msg)
 showEntries state =
     let
         filteredEntries =
@@ -271,63 +327,76 @@ showEntries state =
     in
         case filteredEntries of
             [] ->
-                [ div [ class "table" ] [ text "No Matches" ] ]
+                [ div [] [ text "No Matches" ] ]
 
             _ ->
-                [ div [ class "table" ]
-                    [ div [ class "table__row headers" ] <| tableHeaders state
-                    , div [ class "table__body" ] <| tableBody filteredEntries
-                    ]
-                ]
+                [ div [] <| tableBody filteredEntries state.selected ]
 
 
-tableHeaders : State a -> List (Html Msg)
+tableHeaders : State -> List (Html Msg)
 tableHeaders state =
     let
         headers =
             [ ( Name, "Name" ), ( Title, "Title" ), ( Location, "Location" ) ]
     in
-        List.map
-            (\( action, string ) ->
-                div [ class "table__entry-block flex" ]
-                    [ div [ class "text sortable", onClick (AlphaSort string) ] [ text string ]
-                    , div [ class "drop-down-and-button" ]
-                        [ div [ class "drop-down", onClick (Dropdown string) ]
-                            [ text "+" ]
-                        , div [] [ showDropdown action state ]
+        div [ class "table__entry--block flex" ] [ text "" ]
+            :: List.map
+                (\( action, string ) ->
+                    div [ class "table__entry--block flex" ]
+                        [ div [ class "table__entry--text sortable", onClick (AlphaSort string) ] [ text string ]
+                        , div [ class "drop-down-and-button" ]
+                            [ div [ class "drop-down", onClick (Dropdown string) ]
+                                [ text "+" ]
+                            , div [] [ showDropdown action state ]
+                            ]
                         ]
-                    ]
-            )
-            headers
+                )
+                headers
 
 
-tableBody : List Entry -> List (Html Msg)
-tableBody entries =
+tableBody : List Entry -> List Entry -> List (Html Msg)
+tableBody entries selected =
     List.map
         (\entry ->
-            div [ class "table__row" ]
-                [ div [ class "table__entry-block" ] [ text entry.name ]
-                , div [ class "table__entry-block" ] [ text entry.title ]
-                , div [ class "table__entry-block" ] [ text entry.location ]
+            div [ class "table__row entry" ]
+                [ checkbox selected entry
+                , div [ class "table__entry--block" ] [ text entry.name ]
+                , div [ class "table__entry--block" ] [ text entry.title ]
+                , div [ class "table__entry--block" ] [ text entry.location ]
                 ]
         )
         entries
 
 
-showDropdown : Header -> State a -> Html Msg
+checkbox : List Entry -> Entry -> Html Msg
+checkbox selected entry =
+    let
+        isChecked =
+            List.member entry selected
+
+        message =
+            if isChecked then
+                Deselect entry
+            else
+                Select entry
+    in
+        input [ type_ "checkbox", checked isChecked, onClick message ] []
+
+
+showDropdown : Header -> State -> Html Msg
 showDropdown header state =
     case state.open of
         ( Open, hdr ) ->
             if header == hdr then
                 div [ class "dropdown-list" ] <|
                     List.map
-                        (\item ->
+                        (\( item, header ) ->
                             label []
-                                [ input [ type_ "checkbox", checked <| not (Set.member item state.checkedEntries), onClick (FilterChecked item) ] []
+                                [ input [ type_ "checkbox", checked <| not (List.member ( item, header ) state.uncheckedEntries), onClick (FilterChecked ( item, header )) ] []
                                 , text item
                                 ]
                         )
-                        (Set.toList state.dropdownSelection)
+                        state.dropdownSelection
             else
                 text ""
 
@@ -335,7 +404,7 @@ showDropdown header state =
             text ""
 
 
-sortedEntries : State a -> List Entry -> List Entry
+sortedEntries : State -> List Entry -> List Entry
 sortedEntries state entries =
     case state.sortType of
         SortType dir header ->
@@ -363,7 +432,7 @@ sortedEntries state entries =
 ---- PROGRAM ----
 
 
-main : Program Never (State a) Msg
+main : Program Never State Msg
 main =
     Html.program
         { view = view
