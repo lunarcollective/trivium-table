@@ -31,6 +31,7 @@ type alias Entry =
 
 type alias Model =
     { query : String
+    , selection : List Entry
     , table : Trivium.State Entry
     }
 
@@ -38,9 +39,28 @@ type alias Model =
 init : ( Model, Cmd Msg )
 init =
     ( (Model "")
+        []
         (Trivium.initWith
-            []
+            initEntries
             (\entry -> entry.selectionType == Include && entry.checked == Include)
+            (\entry bool ->
+                { entry
+                    | checked =
+                        if bool then
+                            Include
+                        else
+                            Exclude
+                }
+            )
+            (\entry bool ->
+                { entry
+                    | selectionType =
+                        if bool then
+                            Include
+                        else
+                            Exclude
+                }
+            )
         )
     , Cmd.none
     )
@@ -92,7 +112,8 @@ update msg model =
 view : Model -> Html Msg
 view model =
     div [ class "body__container" ]
-        [ div [ class "input__container" ]
+        [ Html.map (\a -> TriviumMsg a) <| Trivium.viewFilter selection model.table
+        , div [ class "input__container" ]
             [ input
                 [ type_ "text"
                 , class "search-input"
@@ -107,6 +128,11 @@ view model =
             ]
         , Html.map (\a -> TriviumMsg a) <| Trivium.view model.table
         ]
+
+
+selection : Entry -> String
+selection entry =
+    entry.name
 
 
 
