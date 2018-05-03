@@ -1,9 +1,10 @@
 body {
-  font-family: 'Source Sans Pro', 'Trebuchet MS', 'Lucida Grande', 'Bitstream Vera Sans', 'Helvetica Neue', sans-serif;
+  font-family: "Source Sans Pro", "Trebuchet MS", "Lucida Grande",
+    "Bitstream Vera Sans", "Helvetica Neue", sans-serif;
   margin: 0;
   text-align: center;
   color: #293c4b;
-  background: #F9FCFF;
+  background: #f9fcff;
   height: 120vh;
 }
 
@@ -14,6 +15,19 @@ h1 {
 img {
   margin: 20px 0;
   max-width: 200px;
+}
+.button {
+  padding: 0.5rem;
+  border: 1px solid black;
+  border-radius: 4px;
+  width: 4rem;
+  text-align: center;
+  cursor: pointer;
+  background: white;
+}
+
+.button:hover {
+  background: #eee;
 }
 
 .body__container {
@@ -27,7 +41,7 @@ img {
 
 .search-input {
   width: 30%;
-  padding: .5rem;
+  padding: 0.5rem;
   font-size: 12pt;
   border-radius: 4px;
   border: 1px solid lightgray;

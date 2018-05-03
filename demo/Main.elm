@@ -43,19 +43,24 @@ init =
         (Trivium.initWith
             initEntries
             (\entry -> entry.selectionType == Include && entry.checked == Include)
+            (\entry -> entry.selectionType == Include)
+            (\entry -> entry.checked == Include)
             (\entry bool ->
                 { entry
                     | checked =
                         if bool then
-                            Include
+                            if entry.checked == Include then
+                                Exclude
+                            else
+                                Include
                         else
                             Exclude
                 }
             )
-            (\entry bool ->
+            (\entry query ->
                 { entry
                     | selectionType =
-                        if bool then
+                        if String.contains (String.toLower query) (String.toLower entry.name) then
                             Include
                         else
                             Exclude
