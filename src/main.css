@@ -1,9 +1,10 @@
 body {
-  font-family: 'Source Sans Pro', 'Trebuchet MS', 'Lucida Grande', 'Bitstream Vera Sans', 'Helvetica Neue', sans-serif;
+  font-family: "Source Sans Pro", "Trebuchet MS", "Lucida Grande",
+    "Bitstream Vera Sans", "Helvetica Neue", sans-serif;
   margin: 0;
   text-align: center;
   color: #293c4b;
-  background: #F9FCFF;
+  background: #f9fcff;
   height: 120vh;
 }
 
@@ -27,7 +28,7 @@ img {
 
 .search-input {
   width: 30%;
-  padding: .5rem;
+  padding: 0.5rem;
   font-size: 12pt;
   border-radius: 4px;
   border: 1px solid lightgray;

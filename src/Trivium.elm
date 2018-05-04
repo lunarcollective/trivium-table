@@ -20,8 +20,10 @@ type alias State a =
     , query : String
     , entries : List a
     , include : a -> Bool
+    , isSelected : a -> Bool
+    , isChecked : a -> Bool
     , checked : a -> Bool -> a
-    , select : a -> Bool -> a
+    , select : a -> String -> a
     , selected : List a
     , open : Bool
     , dropdownSelection : List a
@@ -36,6 +38,8 @@ init =
         ""
         []
         (\_ -> False)
+        (\_ -> True)
+        (\_ -> True)
         (\e _ -> e)
         (\e _ -> e)
         []
@@ -46,9 +50,9 @@ init =
     )
 
 
-initWith : List a -> (a -> Bool) -> (a -> Bool -> a) -> (a -> Bool -> a) -> State a
-initWith entries include e s =
-    State "" "" entries include e s [] False ([]) ([])
+initWith : List a -> (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> (a -> Bool -> a) -> (a -> String -> a) -> State a
+initWith entries include isSelected isChecked e s =
+    State "" "" entries include isSelected isChecked e s [] False ([]) ([])
 
 
 type Msg b
@@ -68,7 +72,7 @@ update msg state =
         UpdateQuery query ->
             ( { state
                 | query = query
-                , entries = List.map (filterEntries state.select query) state.entries
+                , entries = List.map (\entry -> state.select entry query) state.entries
               }
             , Cmd.none
             )
@@ -104,7 +108,7 @@ update msg state =
                     List.map
                         (\entry ->
                             if entry == e then
-                                state.select entry False
+                                state.checked entry True
                             else
                                 entry
                         )
@@ -211,22 +215,33 @@ headerToEntryField sortType state entry =
 
 viewFilter selection state =
     if state.open then
-        div [ class "dropdown-list", onClick ToggleDropdown ] <|
-            List.map
-                (\entry ->
-                    label []
-                        [ input
-                            [ type_ "checkbox"
-                            , checked <| state.include entry
-                            , onClick (FilterChecked entry)
-                            ]
-                            []
-                        , text <| selection entry
-                        ]
-                )
-                state.entries
+        div [ class "dropdown-list" ] <|
+            [ div [ class "button", onClick ToggleDropdown ] [ text "X" ]
+            , input
+                [ type_ "text"
+                , onInput UpdateQuery
+                , value state.query
+                ]
+                []
+            ]
+                ++ List.map
+                    (\entry ->
+                        if state.isSelected entry then
+                            label []
+                                [ input
+                                    [ type_ "checkbox"
+                                    , checked <| state.include entry
+                                    , onClick (FilterChecked entry)
+                                    ]
+                                    []
+                                , text <| selection entry
+                                ]
+                        else
+                            div [] []
+                    )
+                    state.entries
     else
-        div [ onClick ToggleDropdown ] [ text "+" ]
+        div [ class "button", onClick ToggleDropdown ] [ text "+" ]
 
 
 view state =
@@ -244,7 +259,8 @@ view state =
 showEntries state =
     let
         filteredEntries =
-            List.filter state.include state.entries
+            -- state.entries
+            List.filter state.isChecked state.entries
     in
         case filteredEntries of
             [] ->
